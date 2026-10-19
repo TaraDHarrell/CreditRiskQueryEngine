@@ -760,6 +760,44 @@ Instructions:
             )
             # For this query, avoid displaying an unverified LLM ranking.
             return verified_summary.strip()
+    # Use the actual query results to calculate restructured loan impairment.
+    # This prevents the AI response from reporting incorrect totals.
+    if (
+        not dataframe.empty
+        and 'is_restructured' in dataframe.columns
+        and 'is_impaired' in dataframe.columns
+        and 'loan_account_number' in dataframe.columns
+    ):
+        restructured = dataframe[
+            pd.to_numeric(
+                dataframe['is_restructured'], errors='coerce'
+            ) == 1
+        ]
+
+        if not restructured.empty:
+            total_loans = restructured['loan_account_number'].nunique()
+
+            impaired_loans = restructured.loc[
+                pd.to_numeric(
+                    restructured['is_impaired'], errors='coerce'
+                ) == 1,
+                'loan_account_number'
+            ].nunique()
+
+            impaired_pct = (
+                impaired_loans / total_loans * 100
+                if total_loans else 0
+            )
+
+            if 'restructur' in user_question.lower():
+                return (
+                    f"Of the {total_loans} restructured loans, "
+                    f"{impaired_loans} are classified as impaired, "
+                    f"representing {impaired_pct:.2f}% of the total.\n\n"
+                    "The individual loan records and impairment flags "
+                    "are available in the result data below."
+                )
+
     return narrative
 
 
